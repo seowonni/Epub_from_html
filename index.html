@@ -41,16 +41,18 @@
                 data: chapter.trim(),
             }));
 
-            const epub = new Epub({
+            // EPUB 생성
+            const epub = new ePub({
                 title: title,
                 author: '저자 이름',
                 cover: URL.createObjectURL(coverImage),
                 content: content
             });
 
+            // 다운로드
             epub.download(`${title}.epub`);
+
             document.getElementById('message').innerText = 'EPUB 파일 생성 완료!';
         };
     </script>
-</body>
-</html>
+</
