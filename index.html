@@ -42,7 +42,11 @@
                 data: chapter.trim(),
             }));
 
-            const coverBlob = URL.createObjectURL(coverImage);
+            const coverBlob = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.readAsDataURL(coverImage);
+            });
 
             // EPUB.js를 사용하여 EPUB 파일 생성
             const epub = new ePub({
