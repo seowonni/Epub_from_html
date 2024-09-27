@@ -7,7 +7,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/epub-gen/1.2.3/epub.min.js"></script>
 </head>
 <body>
-    <h1>EPUB 변환기</h1>
+    <h1>EPUB 변환기 01:15</h1>
     <form id="uploadForm">
         <label for="htmlFile">HTML 파일 업로드:</label>
         <input type="file" id="htmlFile" accept=".html" required><br><br>
@@ -23,6 +23,7 @@
     <script>
         document.getElementById('uploadForm').onsubmit = async (event) => {
             event.preventDefault();
+
             const htmlFile = document.getElementById('htmlFile').files[0];
             const coverImage = document.getElementById('coverImage').files[0];
 
@@ -41,11 +42,13 @@
                 data: chapter.trim(),
             }));
 
-            // EPUB 생성
+            // Blob URL 생성
+            const coverBlob = URL.createObjectURL(coverImage);
+
             const epub = new ePub({
                 title: title,
                 author: '저자 이름',
-                cover: URL.createObjectURL(coverImage),
+                cover: coverBlob,
                 content: content
             });
 
@@ -55,4 +58,5 @@
             document.getElementById('message').innerText = 'EPUB 파일 생성 완료!';
         };
     </script>
-</
+</body>
+</html>
