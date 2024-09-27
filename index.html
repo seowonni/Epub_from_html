@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EPUB 변환기3</title>
+    <title>EPUB 변환기</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
@@ -54,11 +54,18 @@
             zip.file(coverFileName, coverData);
 
             // EPUB 메타데이터 설정
-            const manifest = content.map((ch, index) => `
-                <item id="chapter${index + 1}" href="chapter${index + 1}.xhtml" media-type="application/xhtml+xml"/>`).join('\n');
+            const manifest = `
+                <item id="cover" href="cover.jpg" media-type="image/jpeg"/><item id="coverpage" href="cover.xhtml" media-type="application/xhtml+xml"/>
+                <item id="title" href="title.xhtml" media-type="application/xhtml+xml"/>
+                ${content.map((ch, index) => `
+                <item id="chapter${index + 1}" href="chapter${index + 1}.xhtml" media-type="application/xhtml+xml"/>`).join('')}
+            `;
 
-            const spine = content.map((ch, index) => `
-                <itemref idref="chapter${index + 1}"/>`).join('\n');
+            const spine = `
+                <itemref idref="cover"/>
+                <itemref idref="title"/>
+                ${content.map((ch, index) => `<itemref idref="chapter${index + 1}"/>`).join('')}
+            `;
 
             const contentOPF = `<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="3.0">
@@ -66,12 +73,11 @@
         <title>${title}</title>
         <author>저자 이름</author>
         <language>ko</language>
-        <meta name="cover" content="${coverFileName}"/>
+        <meta name="cover" content="cover"/>
     </metadata>
     <manifest>
         ${manifest}
         <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
-        <item id="cover" href="${coverFileName}" media-type="image/jpeg"/>
     </manifest>
     <spine>
         ${spine}
@@ -88,16 +94,26 @@
     </head>
     <body>
         <navMap>
+            <navPoint id="navPoint-1" playOrder="1">
+                <navLabel><text>Cover</text></navLabel>
+                <content src= "cover.xhtml"/>
+            </navPoint>
+            <navPoint id="navPoint-2" playOrder="2">
+                <navLabel><text>Title</text></navLabel>
+                <content src="title.xhtml"/>
+            </navPoint>
             ${chapters.map((_, index) => `
-            <navPoint id="navPoint-${index + 1}" playOrder="${index + 1}">
+            <navPoint id="navPoint-${index + 3}" playOrder="${index + 3}">
                 <navLabel><text>Chapter ${index + 1}</text></navLabel>
                 <content src="chapter${index + 1}.xhtml"/>
-            </navPoint>`).join('\n')}
+            </navPoint>`).join('')}
         </navMap>
     </body>
 </ncx>`;
 
             // 챕터 파일 추가
+            zip.file("title.xhtml", `<html xmlns="http://www.w3.org/1999/xhtml"><head><title>${title}</title></head><body><h1>${title}</h1></body></html>`);
+            zip.file("cover.xhtml", `<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Cover</title></head><body><img src="cover.jpg" alt="Cover Image" style="width: 100%; height: auto;"/></body></html>`);
             chapters.forEach((chapterContent, index) => {
                 const chapterXHTML = `<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter ${index + 1}</title></head><body>${chapterContent}</body></html>`;
                 zip.file(`chapter${index + 1}.xhtml`, chapterXHTML);
