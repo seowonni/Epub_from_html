@@ -1,0 +1,87 @@
+const zip = new JSZip();
+const coverFileName = "cover.jpg";
+zip.file(coverFileName, coverData);
+
+// EPUB 메타데이터 설정
+const manifest = `
+    <item id="cover" href="cover.jpg" media-type="image/jpeg"/>
+    <item id="coverpage" href="cover.xhtml" media-type="application/xhtml+xml"/>
+    <item id="title" href="title.xhtml" media-type="application/xhtml+xml"/>
+    ${content.map((ch, index) => `
+    <item id="chapter${index + 1}" href="chapter${index + 1}.xhtml" media-type="application/xhtml+xml"/>`).join('')}
+`;
+
+const spine = `
+    <itemref idref="coverpage"/>  <!-- 첫 번째 페이지를 cover.xhtml로 설정 -->
+    <itemref idref="title"/>
+    ${content.map((ch, index) => `<itemref idref="chapter${index + 1}"/>`).join('')}
+`;
+
+const contentOPF = `<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="3.0">
+    <metadata>
+        <title>${title}</title>
+        <author>저자 이름</author>
+        <language>ko</language>
+        <meta name="cover" content="cover"/>
+    </metadata>
+    <manifest>
+        ${manifest}
+        <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    </manifest>
+    <spine>
+        ${spine}
+    </spine>
+</package>`;
+
+const tocNCX = `<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/">
+    <head>
+        <meta name="dtb:uid" content="bookid"/>
+        <meta name="dtb:depth" content="1"/>
+        <meta name="dtb:totalPageCount" content="0"/>
+        <meta name="dtb:maxPageNumber" content="0"/>
+    </head>
+    <body>
+        <navMap>
+            <navPoint id="navPoint-1" playOrder="1">
+                <navLabel><text>Cover</text></navLabel>
+                <content src= "cover.xhtml"/>
+            </navPoint>
+            <navPoint id="navPoint-2" playOrder="2">
+                <navLabel><text>Title</text></navLabel>
+                <content src="title.xhtml"/>
+            </navPoint>
+            ${chapters.map((_, index) => `
+            <navPoint id="navPoint-${index + 3}" playOrder="${index + 3}">
+                <navLabel><text>Chapter ${index + 1}</text></navLabel>
+                <content src="chapter${index + 1}.xhtml"/>
+            </navPoint>`).join('')}
+        </navMap>
+    </body>
+</ncx>`;
+
+zip.file("cover.xhtml", `<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+    <head><title>Cover</title></head>
+    <body>
+        <img src="cover.jpg" alt="Cover Image" style="width: 100%; height: auto;"/>
+        <h1>Cover Page</h1>
+    </body>
+</html>`);
+
+zip.file("title.xhtml", `<html xmlns="http://www.w3.org/1999/xhtml"><head><title>${title}</title></head><body><h1>${title}</h1></body></html>`);
+chapters.forEach((chapterContent, index) => {
+    const chapterXHTML = `<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter ${index + 1}</title></head><body>${chapterContent}</body></html>`;
+    zip.file(`chapter${index + 1}.xhtml`, chapterXHTML);
+});
+
+// EPUB 구조 추가
+zip.file('mimetype', 'application/epub+zip');
+zip.file('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+    <rootfiles>
+        <rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>
+    </rootfiles>
+</container>`);
+zip.file('content.opf', contentOPF);
+zip.file('toc.ncx', tocNCX);
