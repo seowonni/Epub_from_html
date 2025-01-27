@@ -3,13 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EPUB 변환기ver2</title>
+    <title>EPUB 변환기</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
 <body>
-    <h1>EPUB 변환기</h1>
+    <h1>EPUB 변환기vv</h1>
     <form id="uploadForm">
         <label for="htmlFile">HTML 파일 업로드:</label>
-        <input typ
+        <input type="file" id="htmlFile" accept=".html" required><br><br>
+        
+        <label for="coverImage">표지 이미지 업로드:</label>
+        <input type="file" id="coverImage" accept="image/*" required><br><br>
+        
+        <button type="submit">EPUB 생성</button>
+    </form>
 
+    <div id="message"></div>
+
+    <script type="module">
+        document.getElementById('uploadForm').onsubmit = async (event) => {
+            event.preventDefault();
+
+            const htmlFile = document.getElementById('htmlFile').files[0];
+            const coverImage = document.getElementById('coverImage').files[0];
+
+            if (!htmlFile || !coverImage) {
+                alert('모든 파일을 업로드하세요.');
+                return;
+            }
+
+            const htmlText = await htmlFile.text();
+            const titleMatch = htmlText.match(/<h1>(.*?)<\/h1>/);
+            const title = titleMatch ? titleMatch[1] : '제목 없음';
+
+            const chapters = htmlText.split('<hr class="sigil_split_marker" />').slice(1);
+            const content = chapters.map((chapter, index) => ({
+                title: `Chapter ${index + 1}`,
+                data: chapter.trim(),
+            }));
+
+            // 표지 이미지 데이터 읽기
+            const coverData = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.readAsArrayBuffer(coverImage);
+            });
+
+            const zip = new JSZip();
+            const coverFileName = "cover.jpg";
+            zip.file(coverFileName, coverData);
+
+            // EPUB 메타데이터 설정
+            const manifest = `
+                <item id="cover" href="cover.jpg" media-type="image/jpeg"/>
+                <item id="coverpage" href="cover.xhtml" media-type="application/xhtml+xml"/>
+                <item id="title" href="title.xhtml" media-type="application/xhtml+xml"/>
+                ${content.map((ch, index) => `
+                <item id="chapter${index + 1}" href="chapter${index + 1}.xhtml" media-type="application/xhtml+xml"/>`).join('')}
+            `;
+
+            const spine = `
+                <itemref idref="coverpage"/>  <!-- 첫 번째 페이지를 cover.xhtml로 설정 -->
+                <itemref idref="title"/>
+                ${content.map((ch, index) => `<itemref idref="chapter${index + 1}"/>`).join('')}
+            `;
+
+            const contentOPF = `<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="3.0">
+    <metadata>
+        <title>${title}</title>
+        <author>저자 이름</author>
+        <language>ko</language>
+        <meta name="cover" content="cover"/>
+    </metadata>
+    <manifest>
+        ${manifest}
+        <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    </manifest>
+    <spine>
+        ${spine}
+    </spine>
+</package>`;
+
+            const tocNCX = `<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/">
+    <head>
+        <meta name="dtb:uid" content="bookid"/>
+        <meta name="dtb:depth" content="1"/>
+        <meta name="dtb:totalPageCount" content="0"/>
+        <meta name="dtb:maxPageNumber" content="0"/>
+    </head>
+    <body>
+        <navMap>
+            <navPoint id="navPoint-1" playOrder="1">
+                <navLabel><text>Cover</text></navLabel>
+                <content src="cover.xhtml"/>
+            </navPoint>
+            <navPoint id="navPoint-2" playOrder="2">
+                <navLabel><text>Title</text></navLabel>
+                <content src="title.xhtml"/>
+            </navPoint>
+            ${chapters.map((_, index) => `
+            <navPoint id="navPoint-${index + 3}" playOrder="${index + 3}">
+                <navLabel><text>Chapter ${index + 1}</text></navLabel>
+                <content src="chapter${index + 1}.xhtml"/>
+            </navPoint>`).join('')}
+        </navMap>
+    </body>
+</ncx>`;
+
+            // 챕터 파일 추가
+            zip.file("title.xhtml", `<html xmlns="http://www.w3.org/1999/xhtml"><head><title>${title}</title></head><body><h1>${title}</h1></body></html>`);
+            zip.file("cover.xhtml", `<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+                <head><title>Cover</title></head>
+                <body>
+                    <img src="cover.jpg" alt="Cover Image" style="width: 100%; height: auto;"/>
+                    <h1>Cover Page</h1>  <!-- 표지 이미지와 제목을 첫 페이지에 추가 -->
+                </body>
+            </html>`);
+            chapters.forEach((chapterContent, index) => {
+                const chapterXHTML = `<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter ${index + 1}</title></head><body>${chapterContent}</body></html>`;
+                zip.file(`chapter${index + 1}.xhtml`, chapterXHTML);
+            });
+
+            // EPUB 구조 추가
+            zip.file('mimetype', 'application/epub+zip');
+            zip.file('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+    <rootfiles>
+        <rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>
+    </rootfiles>
+</container>`);
+            zip.file('content.opf', contentOPF);
+            zip.file('toc.ncx', tocNCX);
+
+            // 다운로드
+            const blob = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${title}.epub`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            document.getElementById('message').innerText = 'EPUB 파일 생성 완료!';
+        };
+    </script>
+</body>
+</html>
